@@ -4,24 +4,36 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose Terraform action'
+        required: true
+        default: 'init'
+        type: choice
+        options:
+        - init
+        - plan
+        - apply
+        - destroy
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
-  info:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Workflow Information
-        run: |
-          echo "🚀 Terraform Infrastructure Workflows"
-          echo ""
-          echo "Available workflows in Actions tab:"
-          echo "1. terraform-init.yml - Initialize and validate Terraform (auto-runs on push)"
-          echo "2. terraform-plan.yml - Plan infrastructure changes (manual trigger)"
-          echo "3. terraform-apply.yml - Apply infrastructure changes (manual trigger)"
-          echo "4. terraform-destroy.yml - Destroy infrastructure (manual trigger)"
-          echo ""
-          echo "💡 Note: The init workflow should have run automatically when you pushed to main."
-          echo "💡 Use the Actions tab to manually trigger plan, apply, and destroy workflows."
+  terraform-init:
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'init')
+    uses: ./.github/workflows/temp/terraform-init.yml
+
+  terraform-plan:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan'
+    environment: production
+    uses: ./.github/workflows/temp/terraform-plan.yml
+
+  terraform-apply:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    environment: production
+    uses: ./.github/workflows/temp/terraform-apply.yml
+
+  terraform-destroy:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    uses: ./.github/workflows/temp/terraform-destroy.yml

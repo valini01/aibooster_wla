@@ -1,27 +1,22 @@
-name: Terraform Init
+name: Terraform Destroy
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
-  terraform-init:
-    runs-on: ubuntu-latest
+  terraform-destroy:
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Azure Login
+      - name: Azure Login with Managed Identity
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          auth-type: IDENTITY
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -32,6 +27,6 @@ jobs:
         run: terraform init
         working-directory: ./terraform
 
-      - name: Terraform Validate
-        run: terraform validate
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
         working-directory: ./terraform
