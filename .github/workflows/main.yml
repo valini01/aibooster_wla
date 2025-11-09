@@ -5,26 +5,23 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
-  orchestrator:
+  info:
     runs-on: ubuntu-latest
     steps:
-      - name: Repository Dispatch for Init
-        if: github.event_name == 'push'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'terraform-init.yml'
-            });
-            
-      - name: Manual Workflow Guide
-        if: github.event_name == 'workflow_dispatch'
+      - name: Workflow Information
         run: |
-          echo "Manual workflows available:"
-          echo "1. terraform-plan.yml - Plan infrastructure changes"
-          echo "2. terraform-apply.yml - Apply infrastructure changes"
-          echo "3. terraform-destroy.yml - Destroy infrastructure"
-          echo "Navigate to Actions tab to trigger these workflows manually."
+          echo "🚀 Terraform Infrastructure Workflows"
+          echo ""
+          echo "Available workflows in Actions tab:"
+          echo "1. terraform-init.yml - Initialize and validate Terraform (auto-runs on push)"
+          echo "2. terraform-plan.yml - Plan infrastructure changes (manual trigger)"
+          echo "3. terraform-apply.yml - Apply infrastructure changes (manual trigger)"
+          echo "4. terraform-destroy.yml - Destroy infrastructure (manual trigger)"
+          echo ""
+          echo "💡 Note: The init workflow should have run automatically when you pushed to main."
+          echo "💡 Use the Actions tab to manually trigger plan, apply, and destroy workflows."
