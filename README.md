@@ -61,7 +61,9 @@ Customize these values in `terraform/variables.tf` as needed.
 
 ## 🎯 Next Steps
 
-1. Configure the Azure secrets
+1. Configure the Azure secrets (if using service principal)
 2. Set up the production environment
 3. Push changes to trigger the init workflow
 4. Use the Actions tab to manage your infrastructure!
+
+<!-- Trigger update -->
