@@ -1,0 +1,50 @@
+name: "Simple Terraform Test"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose Terraform action'
+        required: true
+        default: 'init'
+        type: choice
+        options:
+        - init
+        - plan
+        - apply
+        - destroy
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  terraform-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Debug Action Selection
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Selected action: ${{ github.event.inputs.action }}"
+          echo "Event type: ${{ github.event_name }}"
+          
+      - name: Debug Push Event
+        if: github.event_name == 'push'
+        run: |
+          echo "Triggered by push to main"
+          echo "Event type: ${{ github.event_name }}"
+          
+      - name: List Terraform Files
+        run: |
+          echo "Checking terraform directory:"
+          ls -la terraform/ || echo "No terraform directory found"
+          
+      - name: Mock Terraform Init
+        run: |
+          echo "Would run: terraform init"
+          echo "Working directory: ./terraform"
