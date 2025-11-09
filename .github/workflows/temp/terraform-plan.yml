@@ -9,6 +9,7 @@ permissions:
 jobs:
   terraform-plan:
     runs-on: self-hosted
+    environment: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
