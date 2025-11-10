@@ -33,7 +33,7 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          auth-type: IDENTITY
+         
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -62,7 +62,7 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          auth-type: IDENTITY
+          auth-type: oidc
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -98,7 +98,7 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          auth-type: IDENTITY
+          auth-type: oidc
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -138,7 +138,7 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          auth-type: IDENTITY
+          auth-type: oidc
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
