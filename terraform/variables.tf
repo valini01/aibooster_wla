@@ -1,11 +1,4 @@
-variable "resource_group_name" {
-  description = "Name of the Azure Resource Group"
-  type        = string
-  default     = "rg-terraform-demo-working"
-}
+# This file is now replaced by customer-config.yml
+# All configuration is now done through the YAML file for better customer experience
 
-variable "location" {
-  description = "Azure region for the Resource Group"
-  type        = string
-  default     = "East US"
-}
+# No variables needed - everything comes from customer-config.yml
