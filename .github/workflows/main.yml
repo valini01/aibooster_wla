@@ -1,29 +1,40 @@
-name: "Terraform Orchestrator"
+name: "Terraform Infrastructure"
 
 on:
   push:
     branches: [main]
+    paths: 
+      - 'terraform/**'
+      - '.github/workflows/main.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/**'
   workflow_dispatch:
     inputs:
       action:
-        description: 'Choose Terraform action'
+        description: 'Choose action to perform'
         required: true
-        default: 'init'
+        default: 'plan'
         type: choice
         options:
-        - init
         - plan
         - apply
-        - destroy
+        - destroy-plan
+        - destroy-apply
 
 permissions:
   contents: read
   id-token: write
+  pull-requests: write
 
 jobs:
-  terraform-init:
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'init')
+  # Automatic Init + Plan (runs on push and PR)
+  terraform-plan:
+    name: "Terraform Plan"
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,7 +45,6 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-         
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -49,45 +59,48 @@ jobs:
         run: terraform validate
         working-directory: ./terraform
 
-  terraform-plan:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: latest
-
-      - name: Terraform Init
-        run: terraform init
-        working-directory: ./terraform
-
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
+        id: plan
+        run: |
+          terraform plan -out=tfplan -detailed-exitcode
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
         working-directory: ./terraform
+        continue-on-error: true
 
-      - name: Upload Plan
+      - name: Upload Plan Artifact
+        if: steps.plan.outputs.exitcode == '2'
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-plan
+          name: terraform-plan-${{ github.run_id }}
           path: terraform/tfplan
           retention-days: 30
 
+      - name: Plan Summary
+        run: |
+          echo "## 📋 Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.plan.outputs.exitcode }}" == "0" ]; then
+            echo "✅ **No changes detected** - Infrastructure is up to date" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.plan.outputs.exitcode }}" == "2" ]; then
+            echo "📝 **Changes detected** - Plan file created and uploaded" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🚀 **Next Steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Review the plan output above" >> $GITHUB_STEP_SUMMARY
+            echo "- Run workflow dispatch with 'apply' action to apply changes" >> $GITHUB_STEP_SUMMARY
+            echo "- The apply job will require manual approval in the 'production' environment" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Plan failed** - Check the logs above for errors" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Manual Apply (requires approval)
   terraform-apply:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    name: "Terraform Apply"
     runs-on: ubuntu-latest
-    environment: production
+    environment: 
+      name: production
+      url: https://portal.azure.com
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -108,25 +121,42 @@ jobs:
         run: terraform init
         working-directory: ./terraform
 
-      - name: Download Plan
+      - name: Download Latest Plan
         uses: actions/download-artifact@v4
         with:
-          name: terraform-plan
+          pattern: terraform-plan-*
           path: terraform/
+          merge-multiple: true
         continue-on-error: true
 
       - name: Terraform Apply
         run: |
           if [ -f tfplan ]; then
+            echo "📦 Applying existing plan..."
             terraform apply tfplan
           else
-            terraform apply -auto-approve
+            echo "⚠️  No plan file found, generating fresh plan and applying..."
+            terraform plan -out=tfplan
+            terraform apply tfplan
           fi
         working-directory: ./terraform
 
-  terraform-destroy:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+      - name: Apply Summary
+        run: |
+          echo "## 🚀 Terraform Apply Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Infrastructure has been successfully deployed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Links:**" >> $GITHUB_STEP_SUMMARY
+          echo "- [Azure Portal](https://portal.azure.com)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Resource Groups](https://portal.azure.com/#view/HubsExtension/BrowseResourceGroups)" >> $GITHUB_STEP_SUMMARY
+
+  # Destroy Planning (shows what will be destroyed)
+  terraform-destroy-plan:
+    name: "Terraform Destroy Plan"
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy-plan'
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -147,6 +177,81 @@ jobs:
         run: terraform init
         working-directory: ./terraform
 
-      - name: Terraform Destroy
-        run: terraform destroy -auto-approve
+      - name: Terraform Destroy Plan
+        run: terraform plan -destroy -out=destroy-plan
         working-directory: ./terraform
+
+      - name: Upload Destroy Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-destroy-plan-${{ github.run_id }}
+          path: terraform/destroy-plan
+          retention-days: 7
+
+      - name: Destroy Plan Summary
+        run: |
+          echo "## 🗑️ Terraform Destroy Plan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️  **DANGER ZONE** - This will DESTROY all infrastructure!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📋 **Review the destroy plan above carefully**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🚨 **To proceed with destruction:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Run workflow dispatch with 'destroy-apply' action" >> $GITHUB_STEP_SUMMARY
+          echo "- This will require manual approval and confirmation" >> $GITHUB_STEP_SUMMARY
+
+  # Manual Destroy (requires approval and confirmation)
+  terraform-destroy-apply:
+    name: "Terraform Destroy Apply"
+    runs-on: ubuntu-latest
+    environment: 
+      name: destruction
+      url: https://portal.azure.com
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy-apply'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./terraform
+
+      - name: Download Destroy Plan
+        uses: actions/download-artifact@v4
+        with:
+          pattern: terraform-destroy-plan-*
+          path: terraform/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Terraform Destroy
+        run: |
+          if [ -f destroy-plan ]; then
+            echo "🗑️  Applying destroy plan..."
+            terraform apply destroy-plan
+          else
+            echo "⚠️  No destroy plan found, running direct destroy..."
+            terraform destroy -auto-approve
+          fi
+        working-directory: ./terraform
+
+      - name: Destroy Summary
+        run: |
+          echo "## 💥 Terraform Destroy Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Infrastructure has been successfully destroyed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 [Verify in Azure Portal](https://portal.azure.com/#view/HubsExtension/BrowseResourceGroups)" >> $GITHUB_STEP_SUMMARY
